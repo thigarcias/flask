@@ -10,7 +10,7 @@ from load_creds import load_creds
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:4200"}})
+CORS(app, resources={r"/*": {"origins": '*'}})
 
 
 # Configurações do MongoDB
@@ -32,17 +32,18 @@ assistant = client_openai.beta.assistants.create(
 )
 
 def get_filter(prompt_input):
+    global valor_list
     model = genai.GenerativeModel(
         model_name="tunedModels/propharmaco-vtrodga63yfr",
     )
-    prompt_to_gemini = f"""
+    prompt_to_gemini = """
     Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
-    Prompt: '{prompt_input}'
+    Prompt: '{0}'
     Propriedades: "codigoFilial,numeroOrcamento,codigoFilialDestino,codigoCliente,dataEntrada,valorRequisitado,valorDesconto,valorTaxa,numeroComprovanteManual,flagEnvio,nomePaciente,observacoesPaciente,enderecoPaciente,codigoConvenio,codigoFuncionario,condicaoPagamento,codigoCaptacao"
     Filtro: '{{propriedade: "PROPRIEDADE", valor: "VALOR"}}'
     
     Ignore tudo que você conhece do mundo, apenas faça o que foi pedido.
-    """
+    """.format(prompt_input)
 
     chat_session = model.start_chat(history=[])
     response = chat_session.send_message(prompt_to_gemini)
@@ -60,6 +61,7 @@ def get_filter(prompt_input):
     try:
         response_data = json.loads(response_text)
     except json.JSONDecodeError as e:
+        print(f'Erro ao decodificar JSON: {e}')
         return []
 
     filtros_resultado = []
@@ -96,14 +98,14 @@ def get_filter(prompt_input):
                     pass
 
                 if prop == 'dataEntrada':
-                    valor_atual = []
-                    data_inicio = datetime(valor, 1, 1)
-                    data_fim = datetime(valor, 12, 31)
-                    valor.append(data_inicio)
-                    valor.append(data_fim)
+                    valor_list = []
+                    data_inicio = datetime(valor_atual, 1, 1)
+                    data_fim = datetime(valor_atual, 12, 31)
+                    valor_list.append(data_inicio)
+                    valor_list.append(data_fim)
                 filtros_resultado.append({
                     'propriedade': prop,
-                    'valor': valor_atual,
+                    'valor': valor_list,
                     'operador': operador
                 })
 

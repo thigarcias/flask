@@ -28,6 +28,7 @@ assistant = client_openai.beta.assistants.create(
 )
 
 def get_filter(prompt_input):
+    global valor_list
     model = genai.GenerativeModel(
         model_name="tunedModels/propharmaco-vtrodga63yfr",
     )
@@ -93,14 +94,14 @@ def get_filter(prompt_input):
                     pass
 
                 if prop == 'dataEntrada':
-                    valor_atual = []
-                    data_inicio = datetime(valor, 1, 1)
-                    data_fim = datetime(valor, 12, 31)
-                    valor.append(data_inicio)
-                    valor.append(data_fim)
+                    valor_list = []
+                    data_inicio = datetime(valor_atual, 1, 1)
+                    data_fim = datetime(valor_atual, 12, 31)
+                    valor_list.append(data_inicio)
+                    valor_list.append(data_fim)
                 filtros_resultado.append({
                     'propriedade': prop,
-                    'valor': valor_atual,
+                    'valor': valor_list,
                     'operador': operador
                 })
 
