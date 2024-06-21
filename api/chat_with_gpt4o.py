@@ -1,23 +1,19 @@
-from flask import Flask, request, jsonify
 import json
 import re
 from datetime import datetime
+
 import google.generativeai as genai
 import requests
 from pymongo import MongoClient
 from openai import OpenAI
+
 from load_creds import load_creds
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:4200"}})
-
 
 # Configurações do MongoDB
 client = MongoClient('mongodb://localhost:27017/')
 db = client['propharmaco']
 collection = db['reqs']
-api_key = 'sk-proj-UUwQVhrVPj11a57FSanoT3BlbkFJG1Ad4aCgvAtzNKe57yor'
+api_key = 'sk-proj-haFqxKIaSvo73sH8dSEbT3BlbkFJCOfPR6vSd7qiRicR4QKH'
 
 creds = load_creds()
 genai.configure(credentials=creds)
@@ -35,14 +31,14 @@ def get_filter(prompt_input):
     model = genai.GenerativeModel(
         model_name="tunedModels/propharmaco-vtrodga63yfr",
     )
-    prompt_to_gemini = f"""
+    prompt_to_gemini = """
     Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
-    Prompt: '{prompt_input}'
+    Prompt: '{0}'
     Propriedades: "codigoFilial,numeroOrcamento,codigoFilialDestino,codigoCliente,dataEntrada,valorRequisitado,valorDesconto,valorTaxa,numeroComprovanteManual,flagEnvio,nomePaciente,observacoesPaciente,enderecoPaciente,codigoConvenio,codigoFuncionario,condicaoPagamento,codigoCaptacao"
     Filtro: '{{propriedade: "PROPRIEDADE", valor: "VALOR"}}'
     
     Ignore tudo que você conhece do mundo, apenas faça o que foi pedido.
-    """
+    """.format(prompt_input)
 
     chat_session = model.start_chat(history=[])
     response = chat_session.send_message(prompt_to_gemini)
@@ -60,6 +56,7 @@ def get_filter(prompt_input):
     try:
         response_data = json.loads(response_text)
     except json.JSONDecodeError as e:
+        print(f'Erro ao decodificar JSON: {e}')
         return []
 
     filtros_resultado = []
@@ -128,16 +125,7 @@ def gpt_generate(assistant, thread, objects, prompt_input):
     }
     response = requests.post(url, headers=headers, json=data)
     resultado = response.json()
-
-    # Log da resposta completa para depuração
-    print("Resposta da API:", json.dumps(resultado, indent=2))
-
-    if 'choices' in resultado and len(resultado['choices']) > 0:
-        resultadoGPT = resultado['choices'][0]['message']['content']
-    else:
-        # Lidar com a ausência de 'choices' na resposta
-        resultadoGPT = "Erro: A resposta da API não contém a chave 'choices'. Verifique a solicitação e tente novamente."
-        print("Erro na resposta da API:", resultado)
+    resultadoGPT = resultado['choices'][0]['message']['content']
 
     # Adiciona a resposta ao thread
     client_openai.beta.threads.messages.create(
@@ -145,76 +133,65 @@ def gpt_generate(assistant, thread, objects, prompt_input):
         role="assistant",
         content=resultadoGPT
     )
+    print()
+    print(resultadoGPT)
 
-    return resultadoGPT
-
-
-@app.route('/iniciar_chat', methods=['POST'])
 def iniciar_chat():
-    data = request.json
-    prompt_input = data['prompt']
+    collection.find_one()
+    global query
+    qtd = 0
     all_objects = []
+    filter_query = []
+    prompt_input = input('O que deseja saber da ProPharmacos?: ')
     filter_query = get_filter(prompt_input)
-    query = {}
-
     if len(filter_query) > 0:
         for filtro in filter_query:
             if isinstance(filtro['valor'], list) and filtro['propriedade'] == 'dataEntrada':
-                query[filtro['propriedade']] = {"$gte": filtro['valor'][0], "$lt": filtro['valor'][1]}
+                query = {filtro['propriedade']: {"$gte": filtro['valor'][0], "$lt": filtro['valor'][1]}}
             elif filtro['operador'] == 'None':
-                query[filtro['propriedade']] = filtro['valor']
+                query = {filtro['propriedade']: filtro['valor']}
             else:
-                query[filtro['propriedade']] = {filtro['operador']: filtro['valor']}
-
+                query = {filtro['propriedade']: {filtro['operador']: filtro['valor']}}
     resultado = collection.find(query).limit(20)
     for documento in resultado:
         all_objects.append(documento)
+        qtd += 1
+    print(f'Quantidade de registros encontrados: {qtd}')
 
+    # Criar thread para a conversa
     thread = client_openai.beta.threads.create()
+
+    # Adiciona mensagem inicial ao thread
     client_openai.beta.threads.messages.create(
         thread_id=thread.id,
-        role='user',
+        role="user",
         content=prompt_input
     )
 
-    resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+    gpt_generate(assistant, thread, all_objects, prompt_input)
 
-    return jsonify({
-        'thread_id': thread.id,
-        'response': resultadoGPT
-    })
-
-
-@app.route('/continuar_chat', methods=['POST'])
-def continuar_chat():
-    data = request.json
-    thread_id = data['thread_id']
-    user_input = data['input']
-
-    client_openai.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content=user_input
-    )
-    run = client_openai.beta.threads.runs.create_and_poll(
-        thread_id=thread_id,
-        assistant_id=assistant.id,
-    )
-    if run.status == 'completed':
-        messages = client_openai.beta.threads.messages.list(
-            thread_id=thread_id
+    # Inicia o chat contínuo
+    while True:
+        user_input = input("Você: ")
+        client_openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=user_input
         )
-        messages_list = list(messages)
-        if messages_list:
-            latest_message = messages_list[0]
-            if latest_message.role == 'assistant':
-                return jsonify({
-                    'response': latest_message.content[0].text.value
-                })
-    else:
-        return jsonify({
-            'status': run.status
-        })
+        run = client_openai.beta.threads.runs.create_and_poll(
+            thread_id=thread.id,
+            assistant_id=assistant.id,
+        )
+        if run.status == 'completed':
+            messages = client_openai.beta.threads.messages.list(
+                thread_id=thread.id
+            )
+            messages_list = list(messages)
+            if messages_list:
+                latest_message = messages_list[0]
+                if latest_message.role == 'assistant':
+                    print(latest_message.content[0].text.value)
+        else:
+            print(run.status)
 
-if __name__ == '__main__':
-    app.run(debug=True)
+iniciar_chat()
