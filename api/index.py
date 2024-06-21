@@ -14,7 +14,7 @@ CORS(app, resources={r"/*": {"origins": '*'}})
 
 
 # Configurações do MongoDB
-client = MongoClient('mongodb://localhost:27017/')
+client = MongoClient('mongodb://gogood:gogood24@gogood.brazilsouth.cloudapp.azure.com:27017/?authSource=admin')
 db = client['propharmaco']
 collection = db['reqs']
 api_key = 'sk-proj-UUwQVhrVPj11a57FSanoT3BlbkFJG1Ad4aCgvAtzNKe57yor'
