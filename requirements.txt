@@ -7,3 +7,4 @@ flask-cors==4.0.1
 google_auth_oauthlib==1.2.0
 google-auth==2.30.0
 google-auth-httplib2==0.2.0
+python_dotenv==1.0.1

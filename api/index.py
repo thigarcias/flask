@@ -1,3 +1,6 @@
+import os
+
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 import json
 import re
@@ -12,12 +15,14 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": '*'}})
 
+load_dotenv()
 
+# Acessa as variáveis de ambiente
+api_key = os.getenv('API_KEY')
 # Configurações do MongoDB
 client = MongoClient('mongodb://gogood:gogood24@gogood.brazilsouth.cloudapp.azure.com:27017/?authSource=admin')
 db = client['propharmaco']
 collection = db['reqs']
-api_key = 'sk-proj-UUwQVhrVPj11a57FSanoT3BlbkFJG1Ad4aCgvAtzNKe57yor'
 
 creds = load_creds()
 genai.configure(credentials=creds)
