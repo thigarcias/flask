@@ -6,7 +6,7 @@ import google.generativeai as genai
 import requests
 from pymongo import MongoClient
 from openai import OpenAI
-from api.load_creds import load_creds
+from load_creds import load_creds
 from flask_cors import CORS
 
 app = Flask(__name__)
