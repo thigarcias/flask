@@ -204,6 +204,9 @@ def mudar_limite():
     global limit
     data = request.json
     limit = data['limit']
+    return jsonify({
+        'limit': limit
+    })
 
 @app.route('/continuar_chat', methods=['POST'])
 def continuar_chat():
