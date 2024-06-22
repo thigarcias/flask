@@ -44,7 +44,7 @@ def get_filter(prompt_input):
     prompt_to_gemini = """
     Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
     Prompt: '{0}'
-    Propriedades: "codigoFilial,numeroOrcamento,codigoFilialDestino,codigoCliente,dataEntrada,valorRequisitado,valorDesconto,valorTaxa,numeroComprovanteManual,flagEnvio,nomePaciente,observacoesPaciente,enderecoPaciente,codigoConvenio,codigoFuncionario,condicaoPagamento,codigoCaptacao"
+    Propriedades: "codigoFilial,numeroOrcamento,codigoFilialDestino,codigoCliente,dataEntrada,valorRequisitado,valorDesconto,valorTaxa,numeroComprovanteManual,flagEnvio,nomePaciente,observacoesPaciente,enderecoPaciente,codigoConvenio,codigoFuncionario,condicaoPagamento,codigoCaptacao, dadosBanco"
     Filtro: '{{propriedade: "PROPRIEDADE", valor: "VALOR"}}'
     
     Ignore tudo que você conhece do mundo, apenas faça o que foi pedido.
@@ -163,6 +163,7 @@ def gpt_generate(assistant, thread, objects, prompt_input):
 
 
 @app.route('/iniciar_chat', methods=['POST'])
+@app.route('/iniciar_chat', methods=['POST'])
 def iniciar_chat():
     isInfoDatabase = False
     global limit
@@ -176,7 +177,7 @@ def iniciar_chat():
         for filtro in filter_query:
             if isinstance(filtro['valor'], list) and filtro['propriedade'] == 'dataEntrada':
                 query[filtro['propriedade']] = {"$gte": filtro['valor'][0], "$lt": filtro['valor'][1]}
-            elif filtro['valor'] == 'dadosBanco':
+            elif filtro['propriedade'] == 'dadosBanco':
                 collection.find_one()
                 isInfoDatabase = True
             elif filtro['operador'] == 'None':
@@ -195,6 +196,11 @@ def iniciar_chat():
                 content=prompt_input
             )
             resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+
+            return jsonify({
+                'thread_id': thread.id,
+                'response': resultadoGPT
+            })
         else:
             resultado = collection.find_one()
             all_objects.append(resultado)
@@ -206,10 +212,18 @@ def iniciar_chat():
             )
             resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
 
-        return jsonify({
-            'thread_id': thread.id,
-            'response': resultadoGPT
-        })
+            return jsonify({
+                'thread_id': thread.id,
+                'response': resultadoGPT
+            })
+
+    # Adicione um retorno padrão para quando não houver filtros aplicados
+    return jsonify({
+        'error': 'No valid filter query was found or processed.'
+    }), 400
+
+
+
 
 
 limit = 50
