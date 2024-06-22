@@ -107,11 +107,18 @@ def get_filter(prompt_input):
                     data_fim = datetime(valor_atual, 12, 31)
                     valor_list.append(data_inicio)
                     valor_list.append(data_fim)
-                filtros_resultado.append({
-                    'propriedade': prop,
-                    'valor': valor_list,
-                    'operador': operador
-                })
+                    filtros_resultado.append({
+                        'propriedade': prop,
+                        'valor': valor_list,
+                        'operador': operador
+                    })
+                else:
+                    filtros_resultado.append({
+                        'propriedade': prop,
+                        'valor': valor_atual,
+                        'operador': operador
+                    })
+
 
     return filtros_resultado
 
