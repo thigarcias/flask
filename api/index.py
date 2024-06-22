@@ -39,7 +39,7 @@ assistant = client_openai.beta.assistants.create(
 def get_filter(prompt_input):
     valor_list = []
     model = genai.GenerativeModel(
-        model_name="tunedModels/propharmaco-vtrodga63yfr",
+        model_name="tunedModels/propharmaco-fbl45jbqhrrg",
     )
     prompt_to_gemini = """
     Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
@@ -59,7 +59,7 @@ def get_filter(prompt_input):
         "dataEntrada", "valorRequisitado", "valorDesconto", "valorTaxa",
         "numeroComprovanteManual", "flagEnvio", "nomePaciente", "observacoesPaciente",
         "enderecoPaciente", "codigoConvenio", "codigoFuncionario", "condicaoPagamento",
-        "codigoCaptacao"
+        "codigoCaptacao", "dadosBanco"
     ]
 
     try:
@@ -164,6 +164,7 @@ def gpt_generate(assistant, thread, objects, prompt_input):
 
 @app.route('/iniciar_chat', methods=['POST'])
 def iniciar_chat():
+    isInfoDatabase = False
     global limit
     data = request.json
     prompt_input = data['prompt']
@@ -175,28 +176,41 @@ def iniciar_chat():
         for filtro in filter_query:
             if isinstance(filtro['valor'], list) and filtro['propriedade'] == 'dataEntrada':
                 query[filtro['propriedade']] = {"$gte": filtro['valor'][0], "$lt": filtro['valor'][1]}
+            elif filtro['valor'] == 'dadosBanco':
+                collection.find_one()
+                isInfoDatabase = True
             elif filtro['operador'] == 'None':
                 query[filtro['propriedade']] = filtro['valor']
             else:
                 query[filtro['propriedade']] = {filtro['operador']: filtro['valor']}
 
-    resultado = collection.find(query).limit(limit)
-    for documento in resultado:
-        all_objects.append(documento)
+        if not isInfoDatabase:
+            resultado = collection.find(query).limit(limit)
+            for documento in resultado:
+                all_objects.append(documento)
+            thread = client_openai.beta.threads.create()
+            client_openai.beta.threads.messages.create(
+                thread_id=thread.id,
+                role='user',
+                content=prompt_input
+            )
+            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+        else:
+            resultado = collection.find_one()
+            all_objects.append(resultado)
+            thread = client_openai.beta.threads.create()
+            client_openai.beta.threads.messages.create(
+                thread_id=thread.id,
+                role='user',
+                content=prompt_input
+            )
+            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
 
-    thread = client_openai.beta.threads.create()
-    client_openai.beta.threads.messages.create(
-        thread_id=thread.id,
-        role='user',
-        content=prompt_input
-    )
+        return jsonify({
+            'thread_id': thread.id,
+            'response': resultadoGPT
+        })
 
-    resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
-
-    return jsonify({
-        'thread_id': thread.id,
-        'response': resultadoGPT
-    })
 
 limit = 50
 @app.route('/mudar_limit', methods=['POST'])
