@@ -37,7 +37,7 @@ assistant = client_openai.beta.assistants.create(
 )
 
 def get_filter(prompt_input):
-    global valor_list
+    valor_list = []
     model = genai.GenerativeModel(
         model_name="tunedModels/propharmaco-vtrodga63yfr",
     )
