@@ -53,7 +53,6 @@ def get_filter(prompt_input):
     chat_session = model.start_chat(history=[])
     response = chat_session.send_message(prompt_to_gemini)
     response_text = response.text
-    response_text = re.sub(r'[^\x20-\x7E]+', '', response_text)
 
     propriedades = [
         "codigoFilial", "numeroOrcamento", "codigoFilialDestino", "codigoCliente",
