@@ -158,6 +158,7 @@ def gpt_generate(assistant, thread, objects, prompt_input):
 
 @app.route('/iniciar_chat', methods=['POST'])
 def iniciar_chat():
+    global limit
     data = request.json
     prompt_input = data['prompt']
     all_objects = []
@@ -173,7 +174,7 @@ def iniciar_chat():
             else:
                 query[filtro['propriedade']] = {filtro['operador']: filtro['valor']}
 
-    resultado = collection.find(query).limit(20)
+    resultado = collection.find(query).limit(limit)
     for documento in resultado:
         all_objects.append(documento)
 
@@ -191,6 +192,12 @@ def iniciar_chat():
         'response': resultadoGPT
     })
 
+limit = 10
+@app.route('/mudar_limit', methods=['POST'])
+def mudar_limite():
+    global limit
+    data = request.json
+    limit = data['limit']
 
 @app.route('/continuar_chat', methods=['POST'])
 def continuar_chat():
