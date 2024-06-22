@@ -198,7 +198,7 @@ def iniciar_chat():
         'response': resultadoGPT
     })
 
-limit = 10
+limit = 50
 @app.route('/mudar_limit', methods=['POST'])
 def mudar_limite():
     global limit
