@@ -190,7 +190,7 @@ def iniciar_chat():
             })
 
 
-limit = 50
+limit = 200
 
 
 @app.route('/mudar_limit', methods=['POST'])
