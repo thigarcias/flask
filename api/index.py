@@ -29,12 +29,7 @@ genai.configure(credentials=creds)
 
 # Configurações do Assistente
 client_openai = OpenAI(api_key=api_key)
-assistant = client_openai.beta.assistants.create(
-    name="Pharma Assistant",
-    instructions="You are a helpful assistant specialized in pharmacological data.",
-    tools=[{"type": "code_interpreter"}],
-    model="gpt-4o",
-)
+assistant_id = 'asst_2XNc3g4ijBRvktJuB2L24U3F'
 
 def get_filter(prompt_input):
     valor_list = []
@@ -122,7 +117,7 @@ def get_filter(prompt_input):
 
     return filtros_resultado
 
-def gpt_generate(assistant, thread, objects, prompt_input):
+def gpt_generate(assistant_id, thread, objects, prompt_input):
     prompt = (
         f"Com base nesses dados em um contexto farmacêutico:\n{objects}\n"
         f"\n{prompt_input}\n"
@@ -194,7 +189,7 @@ def iniciar_chat():
                 role='user',
                 content=prompt_input
             )
-            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+            resultadoGPT = gpt_generate(assistant_id, thread, all_objects, prompt_input)
 
             return jsonify({
                 'thread_id': thread.id,
@@ -209,7 +204,7 @@ def iniciar_chat():
                 role='user',
                 content=prompt_input
             )
-            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+            resultadoGPT = gpt_generate(assistant_id, thread, all_objects, prompt_input)
 
             return jsonify({
                 'thread_id': thread.id,
@@ -248,7 +243,7 @@ def continuar_chat():
     )
     run = client_openai.beta.threads.runs.create_and_poll(
         thread_id=thread_id,
-        assistant_id=assistant.id,
+        assistant_id=assistant_id,
     )
     if run.status == 'completed':
         messages = client_openai.beta.threads.messages.list(
@@ -268,4 +263,3 @@ def continuar_chat():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
