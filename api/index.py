@@ -29,13 +29,13 @@ genai.configure(credentials=creds)
 
 # Configurações do Assistente
 client_openai = OpenAI(api_key=api_key)
-assistant_id = 'asst_2XNc3g4ijBRvktJuB2L24U3F'
-assistant = client_openai.beta.assistants.retrieve(assistant_id)
+assistant_id = 'asst_0UdwfvwIpzwVLq8ZFFMxsDxJ'
+
 
 def get_filter(prompt_input):
     valor_list = []
     model = genai.GenerativeModel(
-        model_name="tunedModels/propharmaco-fbl45jbqhrrg",
+        model_name="tunedModels/propharmaco-1ybfpkl6e1ty",
     )
     prompt_to_gemini = """
     Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
@@ -117,7 +117,7 @@ def get_filter(prompt_input):
 
     return filtros_resultado
 
-def gpt_generate(assistant, thread, objects, prompt_input):
+def gpt_generate(thread, objects, prompt_input):
     prompt = (
         f"Com base nesses dados em um contexto farmacêutico:\n{objects}\n"
         f"\n{prompt_input}\n"
@@ -174,21 +174,29 @@ def iniciar_chat():
                 collection.find_one()
                 isInfoDatabase = True
             elif filtro['operador'] == 'None':
-                query[filtro['propriedade']] = filtro['valor']
+                if isinstance(filtro['valor'], str):
+                    query[filtro['propriedade']] = filtro['valor'].upper()
+                else:
+                    query[filtro['propriedade']] = filtro['valor']
             else:
-                query[filtro['propriedade']] = {filtro['operador']: filtro['valor']}
+                if isinstance(filtro['valor'], str):
+                    query[filtro['propriedade']] = {filtro['operador']: filtro['valor'].upper()}
+                else:
+                    query[filtro['propriedade']] = {filtro['operador']: filtro['valor']}
 
+        print(query)
         if not isInfoDatabase:
             resultado = collection.find(query).limit(limit)
             for documento in resultado:
                 all_objects.append(documento)
+            # Cria uma nova thread para cada nova interação
             thread = client_openai.beta.threads.create()
             client_openai.beta.threads.messages.create(
                 thread_id=thread.id,
                 role='user',
                 content=prompt_input
             )
-            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
             return jsonify({
                 'thread_id': thread.id,
@@ -197,13 +205,14 @@ def iniciar_chat():
         else:
             resultado = collection.find_one()
             all_objects.append(resultado)
+            # Cria uma nova thread para cada nova interação
             thread = client_openai.beta.threads.create()
             client_openai.beta.threads.messages.create(
                 thread_id=thread.id,
                 role='user',
                 content=prompt_input
             )
-            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
             return jsonify({
                 'thread_id': thread.id,
@@ -214,6 +223,7 @@ def iniciar_chat():
     return jsonify({
         'error': 'No valid filter query was found or processed.'
     }), 400
+
 
 limit = 50
 
@@ -239,7 +249,7 @@ def continuar_chat():
     )
     run = client_openai.beta.threads.runs.create_and_poll(
         thread_id=thread_id,
-        assistant_id=assistant.id,
+        assistant_id=assistant_id,
     )
     if run.status == 'completed':
         messages = client_openai.beta.threads.messages.list(
