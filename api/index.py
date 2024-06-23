@@ -62,10 +62,12 @@ def get_filter(prompt_input):
         return response_text
     try:
         response_data = eval(response_text)
+
     except json.JSONDecodeError as e:
         print(f'Erro ao decodificar JSON: {e}')
         return []
-
+    if response_data['nomePaciente']:
+        response_data['nomePaciente'] = response_data['nomePaciente'].upper()
     return response_data
 
 
