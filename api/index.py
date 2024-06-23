@@ -1,5 +1,4 @@
 import os
-
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 import json
@@ -19,6 +18,7 @@ load_dotenv()
 
 # Acessa as variáveis de ambiente
 api_key = os.getenv('API_KEY')
+
 # Configurações do MongoDB
 client = MongoClient('mongodb://gogood:gogood24@gogood.brazilsouth.cloudapp.azure.com:27017/?authSource=admin')
 db = client['propharmaco']
@@ -29,12 +29,8 @@ genai.configure(credentials=creds)
 
 # Configurações do Assistente
 client_openai = OpenAI(api_key=api_key)
-assistant = client_openai.beta.assistants.create(
-    name="Pharma Assistant",
-    instructions="You are a helpful assistant specialized in pharmacological data.",
-    tools=[{"type": "code_interpreter"}],
-    model="gpt-4o",
-)
+# Use o ID do assistente existente
+assistant_id = 'asst_RyyyPn8XYQpptDfh2VFd8EZC'
 
 def get_filter(prompt_input):
     valor_list = []
@@ -119,10 +115,9 @@ def get_filter(prompt_input):
                         'operador': operador
                     })
 
-
     return filtros_resultado
 
-def gpt_generate(assistant, thread, objects, prompt_input):
+def gpt_generate(thread, objects, prompt_input):
     prompt = (
         f"Com base nesses dados em um contexto farmacêutico:\n{objects}\n"
         f"\n{prompt_input}\n"
@@ -163,7 +158,6 @@ def gpt_generate(assistant, thread, objects, prompt_input):
 
 
 @app.route('/iniciar_chat', methods=['POST'])
-@app.route('/iniciar_chat', methods=['POST'])
 def iniciar_chat():
     isInfoDatabase = False
     global limit
@@ -177,9 +171,8 @@ def iniciar_chat():
         for filtro in filter_query:
             if isinstance(filtro['valor'], list) and filtro['propriedade'] == 'dataEntrada':
                 query[filtro['propriedade']] = {"$gte": filtro['valor'][0], "$lt": filtro['valor'][1]}
-            elif filtro['valor'] == 'dadosBanco':
+            elif filtro['propriedade'] == 'dadosBanco':
                 collection.find_one()
-                print('SEXOOOOOOOO')
                 isInfoDatabase = True
             elif filtro['operador'] == 'None':
                 query[filtro['propriedade']] = filtro['valor']
@@ -196,7 +189,7 @@ def iniciar_chat():
                 role='user',
                 content=prompt_input
             )
-            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
             return jsonify({
                 'thread_id': thread.id,
@@ -205,15 +198,13 @@ def iniciar_chat():
         else:
             resultado = collection.find_one()
             all_objects.append(resultado)
-            print('SEXOOOOOOOO')
-            print(all_objects)
             thread = client_openai.beta.threads.create()
             client_openai.beta.threads.messages.create(
                 thread_id=thread.id,
                 role='user',
                 content=prompt_input
             )
-            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
             return jsonify({
                 'thread_id': thread.id,
@@ -224,10 +215,6 @@ def iniciar_chat():
     return jsonify({
         'error': 'No valid filter query was found or processed.'
     }), 400
-
-
-
-
 
 limit = 50
 @app.route('/mudar_limit', methods=['POST'])
@@ -252,7 +239,7 @@ def continuar_chat():
     )
     run = client_openai.beta.threads.runs.create_and_poll(
         thread_id=thread_id,
-        assistant_id=assistant.id,
+        assistant_id=assistant_id,
     )
     if run.status == 'completed':
         messages = client_openai.beta.threads.messages.list(
@@ -272,4 +259,3 @@ def continuar_chat():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
