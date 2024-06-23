@@ -35,7 +35,7 @@ assistant_id = 'asst_0UdwfvwIpzwVLq8ZFFMxsDxJ'
 def get_filter(prompt_input):
     valor_list = []
     model = genai.GenerativeModel(
-        model_name="tunedModels/the-goat-vek1yx4ulop4",
+        model_name="tunedModels/the-goat-hcbxhb1ke1wk",
     )
     prompt_to_gemini = """
     Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
