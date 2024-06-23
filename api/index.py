@@ -143,11 +143,7 @@ def iniciar_chat():
     query = get_from_gpt(prompt_input)
 
     # Verifica se a string da query contém 'ISODate'
-    if 'ISODate' in query:
-        # Substitui ISODate por datetime.fromisoformat
-        query = query.replace("ISODate(", "datetime.fromisoformat(").replace("Z')", "')").replace("T", " ")
-
-        # Tenta avaliar a string como um dicionário Python
+    if 'date' in query:
         try:
             query_dict = eval(query, {'datetime': datetime})
         except Exception as e:
