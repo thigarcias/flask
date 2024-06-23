@@ -57,6 +57,8 @@ def get_filter(prompt_input):
         "enderecoPaciente", "codigoConvenio", "codigoFuncionario", "condicaoPagamento",
         "codigoCaptacao", "dadosBanco"
     ]
+    if 'true' in response_text:
+        response_text = response_text.replace('true', 'True')
 
     if response_text == 'dadosBanco':
         return response_text
@@ -66,8 +68,9 @@ def get_filter(prompt_input):
     except json.JSONDecodeError as e:
         print(f'Erro ao decodificar JSON: {e}')
         return []
-    if response_data['nomePaciente']:
+    if 'nomePaciente' in response_data:
         response_data['nomePaciente'] = response_data['nomePaciente'].upper()
+
     return response_data
 
 
