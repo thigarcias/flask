@@ -35,7 +35,7 @@ assistant_id = 'asst_0UdwfvwIpzwVLq8ZFFMxsDxJ'
 def get_filter(prompt_input):
     valor_list = []
     model = genai.GenerativeModel(
-        model_name="tunedModels/the-goat-hcbxhb1ke1wk",
+        model_name="tunedModels/the-goat-p91259aq09w0",
         safety_settings=[
             {
                 "category": "HARM_CATEGORY_HATE_SPEECH",
