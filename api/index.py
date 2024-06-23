@@ -1,7 +1,5 @@
 import os
-import time
 
-import openai
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 import json
@@ -21,7 +19,6 @@ load_dotenv()
 
 # Acessa as variáveis de ambiente
 api_key = os.getenv('API_KEY')
-
 # Configurações do MongoDB
 client = MongoClient('mongodb://gogood:gogood24@gogood.brazilsouth.cloudapp.azure.com:27017/?authSource=admin')
 db = client['propharmaco']
@@ -32,66 +29,100 @@ genai.configure(credentials=creds)
 
 # Configurações do Assistente
 client_openai = OpenAI(api_key=api_key)
-# Use o ID do assistente existente
-assistant_id = 'asst_RyyyPn8XYQpptDfh2VFd8EZC'
+assistant = client_openai.beta.assistants.create(
+    name="Pharma Assistant",
+    instructions="You are a helpful assistant specialized in pharmacological data.",
+    tools=[{"type": "code_interpreter"}],
+    model="gpt-4o",
+)
 
-openai.api_key = api_key
-assistant_id = 'asst_O8Vy1pvfycCpWSVFqu7mkRJl'
-def get_from_gpt(prompt):
-    global cleaned_input
+def get_filter(prompt_input):
+    valor_list = []
+    model = genai.GenerativeModel(
+        model_name="tunedModels/propharmaco-fbl45jbqhrrg",
+    )
+    prompt_to_gemini = """
+    Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
+    Prompt: '{0}'
+    Propriedades: "codigoFilial,numeroOrcamento,codigoFilialDestino,codigoCliente,dataEntrada,valorRequisitado,valorDesconto,valorTaxa,numeroComprovanteManual,flagEnvio,nomePaciente,observacoesPaciente,enderecoPaciente,codigoConvenio,codigoFuncionario,condicaoPagamento,codigoCaptacao, dadosBanco"
+    Filtro: '{{propriedade: "PROPRIEDADE", valor: "VALOR"}}'
+    
+    Ignore tudo que você conhece do mundo, apenas faça o que foi pedido.
+    """.format(prompt_input)
 
-    def create_thread_and_run(assistant_id, user_input):
-        # Cria uma nova thread
-        thread = openai.beta.threads.create()
-        thread_id = thread.id
+    chat_session = model.start_chat(history=[])
+    response = chat_session.send_message(prompt_to_gemini)
+    response_text = response.text
 
-        # Cria uma mensagem na thread
-        openai.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=user_input
-        )
+    propriedades = [
+        "codigoFilial", "numeroOrcamento", "codigoFilialDestino", "codigoCliente",
+        "dataEntrada", "valorRequisitado", "valorDesconto", "valorTaxa",
+        "numeroComprovanteManual", "flagEnvio", "nomePaciente", "observacoesPaciente",
+        "enderecoPaciente", "codigoConvenio", "codigoFuncionario", "condicaoPagamento",
+        "codigoCaptacao", "dadosBanco"
+    ]
 
-        # Inicia a execução do assistente
-        run = openai.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=assistant_id
-        )
+    try:
+        response_data = json.loads(response_text)
+    except json.JSONDecodeError as e:
+        print(f'Erro ao decodificar JSON: {e}')
+        return []
 
-        return run.id, thread_id
+    filtros_resultado = []
 
-    def check_run_status(thread_id, run_id):
-        run = openai.beta.threads.runs.retrieve(
-            thread_id=thread_id,
-            run_id=run_id
-        )
-        return run.status
+    if isinstance(response_data, list):
+        for filtro_obj in response_data:
+            filtro = filtro_obj.get('filtro', [])
+            valor = filtro_obj.get('valor', [])
+            operador = filtro_obj.get('operador', 'None')
 
-    def get_response(thread_id):
-        messages = openai.beta.threads.messages.list(thread_id=thread_id)
-        return messages.data
+            for prop in filtro:
+                if prop in propriedades:
+                    valor_atual = valor[filtro.index(prop)]
+                    try:
+                        valor_atual = int(valor_atual)
+                    except ValueError:
+                        pass
+                    filtros_resultado.append({
+                        'propriedade': prop,
+                        'valor': valor_atual,
+                        'operador': operador
+                    })
+    else:
+        filtro = response_data.get('filtro', [])
+        valor = response_data.get('valor', [])
+        operador = response_data.get('operador', 'None')
 
-    # Cria a thread e inicia o assistente
-    run_id, thread_id = create_thread_and_run(assistant_id, prompt)
+        for prop in filtro:
+            if prop in propriedades:
+                valor_atual = valor[filtro.index(prop)]
+                try:
+                    valor_atual = int(valor_atual)
+                except ValueError:
+                    pass
 
-    # Aguarda a conclusão
-    status = check_run_status(thread_id, run_id)
-    while status not in ["completed", "failed"]:
-        time.sleep(2)
-        status = check_run_status(thread_id, run_id)
+                if prop == 'dataEntrada':
+                    valor_list = []
+                    data_inicio = datetime(valor_atual, 1, 1)
+                    data_fim = datetime(valor_atual, 12, 31)
+                    valor_list.append(data_inicio)
+                    valor_list.append(data_fim)
+                    filtros_resultado.append({
+                        'propriedade': prop,
+                        'valor': valor_list,
+                        'operador': operador
+                    })
+                else:
+                    filtros_resultado.append({
+                        'propriedade': prop,
+                        'valor': valor_atual,
+                        'operador': operador
+                    })
 
-    # Obtém a resposta
-    response_messages = get_response(thread_id)
-    for message in response_messages:
-        if message.role == "assistant":
-            content = message.content[0].text.value
-            if content.startswith('```json\n') and content.endswith('\n```'):
-                cleaned_input = content.replace('```json\n', '').replace('\n```', '')
-            else:
-                cleaned_input = content
-    return cleaned_input
 
-def gpt_generate(thread, objects, prompt_input):
+    return filtros_resultado
+
+def gpt_generate(assistant, thread, objects, prompt_input):
     prompt = (
         f"Com base nesses dados em um contexto farmacêutico:\n{objects}\n"
         f"\n{prompt_input}\n"
@@ -132,57 +163,71 @@ def gpt_generate(thread, objects, prompt_input):
 
 
 @app.route('/iniciar_chat', methods=['POST'])
+@app.route('/iniciar_chat', methods=['POST'])
 def iniciar_chat():
-    global limit, collection, client_openai
-
+    isInfoDatabase = False
+    global limit
     data = request.json
     prompt_input = data['prompt']
     all_objects = []
+    filter_query = get_filter(prompt_input)
+    query = {}
 
-    # Obter query a partir do GPT
-    query = get_from_gpt(prompt_input)
+    if len(filter_query) > 0:
+        for filtro in filter_query:
+            if isinstance(filtro['valor'], list) and filtro['propriedade'] == 'dataEntrada':
+                query[filtro['propriedade']] = {"$gte": filtro['valor'][0], "$lt": filtro['valor'][1]}
+            elif filtro['valor'] == 'dadosBanco':
+                collection.find_one()
+                print('SEXOOOOOOOO')
+                isInfoDatabase = True
+            elif filtro['operador'] == 'None':
+                query[filtro['propriedade']] = filtro['valor']
+            else:
+                query[filtro['propriedade']] = {filtro['operador']: filtro['valor']}
 
-    # Verifica se a string da query contém 'ISODate'
-    if 'date' in query:
-        try:
-            query_dict = eval(query, {'datetime': datetime})
-        except Exception as e:
-            return jsonify({'error': f'Erro ao avaliar a query: {e}', 'query': query}), 400
-    else:
-        # Tenta converter a string em um dicionário JSON
-        try:
-            query_dict = json.loads(query)
-        except json.JSONDecodeError:
-            # Se não for uma query válida, retorna a resposta diretamente
+        if not isInfoDatabase:
+            resultado = collection.find(query).limit(limit)
+            for documento in resultado:
+                all_objects.append(documento)
             thread = client_openai.beta.threads.create()
             client_openai.beta.threads.messages.create(
                 thread_id=thread.id,
                 role='user',
                 content=prompt_input
             )
+            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+
             return jsonify({
                 'thread_id': thread.id,
-                'response': query
+                'response': resultadoGPT
+            })
+        else:
+            resultado = collection.find_one()
+            all_objects.append(resultado)
+            print('SEXOOOOOOOO')
+            print(all_objects)
+            thread = client_openai.beta.threads.create()
+            client_openai.beta.threads.messages.create(
+                thread_id=thread.id,
+                role='user',
+                content=prompt_input
+            )
+            resultadoGPT = gpt_generate(assistant, thread, all_objects, prompt_input)
+
+            return jsonify({
+                'thread_id': thread.id,
+                'response': resultadoGPT
             })
 
-    # Executa a consulta no MongoDB
-    resultado = collection.find(query_dict).limit(limit)
-    for documento in resultado:
-        all_objects.append(documento)
-
-    # Cria um novo thread e gera resposta GPT
-    thread = client_openai.beta.threads.create()
-    client_openai.beta.threads.messages.create(
-        thread_id=thread.id,
-        role='user',
-        content=prompt_input
-    )
-    resultado_gpt = gpt_generate(thread, all_objects, prompt_input)
-
+    # Adicione um retorno padrão para quando não houver filtros aplicados
     return jsonify({
-        'thread_id': thread.id,
-        'response': resultado_gpt
-    })
+        'error': 'No valid filter query was found or processed.'
+    }), 400
+
+
+
+
 
 limit = 50
 @app.route('/mudar_limit', methods=['POST'])
@@ -207,7 +252,7 @@ def continuar_chat():
     )
     run = client_openai.beta.threads.runs.create_and_poll(
         thread_id=thread_id,
-        assistant_id=assistant_id,
+        assistant_id=assistant.id,
     )
     if run.status == 'completed':
         messages = client_openai.beta.threads.messages.list(
@@ -227,3 +272,4 @@ def continuar_chat():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
