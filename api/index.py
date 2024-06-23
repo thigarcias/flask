@@ -35,7 +35,7 @@ assistant_id = 'asst_0UdwfvwIpzwVLq8ZFFMxsDxJ'
 def get_filter(prompt_input):
     valor_list = []
     model = genai.GenerativeModel(
-        model_name="tunedModels/propharmaco-1ybfpkl6e1ty",
+        model_name="tunedModels/propharmaco-1ps8en4qr3nm",
     )
     prompt_to_gemini = """
     Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
@@ -225,7 +225,7 @@ def iniciar_chat():
     }), 400
 
 
-limit = 50
+limit = 20
 @app.route('/mudar_limit', methods=['POST'])
 def mudar_limite():
     global limit
