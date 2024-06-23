@@ -117,7 +117,7 @@ def get_filter(prompt_input):
 
     return filtros_resultado
 
-def gpt_generate(assistant_id, thread, objects, prompt_input):
+def gpt_generate(thread, objects, prompt_input):
     prompt = (
         f"Com base nesses dados em um contexto farmacêutico:\n{objects}\n"
         f"\n{prompt_input}\n"
@@ -189,7 +189,7 @@ def iniciar_chat():
                 role='user',
                 content=prompt_input
             )
-            resultadoGPT = gpt_generate(assistant_id, thread, all_objects, prompt_input)
+            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
             return jsonify({
                 'thread_id': thread.id,
@@ -204,7 +204,7 @@ def iniciar_chat():
                 role='user',
                 content=prompt_input
             )
-            resultadoGPT = gpt_generate(assistant_id, thread, all_objects, prompt_input)
+            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
             return jsonify({
                 'thread_id': thread.id,
@@ -215,9 +215,6 @@ def iniciar_chat():
     return jsonify({
         'error': 'No valid filter query was found or processed.'
     }), 400
-
-
-
 
 
 limit = 50
