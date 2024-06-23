@@ -35,7 +35,7 @@ assistant_id = 'asst_0UdwfvwIpzwVLq8ZFFMxsDxJ'
 def get_filter(prompt_input):
     valor_list = []
     model = genai.GenerativeModel(
-        model_name="tunedModels/the-goat-p91259aq09w0",
+        model_name="tunedModels/the-goat-r0qne4pnc1ul",
         safety_settings=[
             {
                 "category": "HARM_CATEGORY_HATE_SPEECH",
@@ -78,6 +78,8 @@ def get_filter(prompt_input):
     if 'true' in response_text:
         response_text = response_text.replace('true', 'True')
 
+    if 'respostaNormal' in response_text.strip():
+        return ''
     if response_text == 'dadosBanco':
         return response_text
     try:
@@ -140,39 +142,52 @@ def iniciar_chat():
     all_objects = []
     filter_query = get_filter(prompt_input)
     print("Filtro:", filter_query)
-    if filter_query != 'dadosBanco':
-        resultado = collection.find(filter_query).limit(limit)
-        for documento in resultado:
-            all_objects.append(documento)
-        # Cria uma nova thread para cada nova interação
+    if filter_query == '':
         thread = client_openai.beta.threads.create()
         client_openai.beta.threads.messages.create(
-            thread_id=thread.id,
-            role='user',
-            content=prompt_input
-        )
+        thread_id=thread.id,
+        role='user',
+        content=prompt_input
+         )
         resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
-
         return jsonify({
             'thread_id': thread.id,
             'response': resultadoGPT
         })
     else:
-        resultado = collection.find_one()
-        all_objects.append(resultado)
-        # Cria uma nova thread para cada nova interação
-        thread = client_openai.beta.threads.create()
-        client_openai.beta.threads.messages.create(
-            thread_id=thread.id,
-            role='user',
-            content=prompt_input
-        )
-        resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
+        if filter_query != 'dadosBanco':
+            resultado = collection.find(filter_query).limit(limit)
+            for documento in resultado:
+                all_objects.append(documento)
+            # Cria uma nova thread para cada nova interação
+            thread = client_openai.beta.threads.create()
+            client_openai.beta.threads.messages.create(
+                thread_id=thread.id,
+                role='user',
+                content=prompt_input
+            )
+            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
-        return jsonify({
-            'thread_id': thread.id,
-            'response': resultadoGPT
-        })
+            return jsonify({
+                'thread_id': thread.id,
+                'response': resultadoGPT
+            })
+        else:
+            resultado = collection.find_one()
+            all_objects.append(resultado)
+            # Cria uma nova thread para cada nova interação
+            thread = client_openai.beta.threads.create()
+            client_openai.beta.threads.messages.create(
+                thread_id=thread.id,
+                role='user',
+                content=prompt_input
+            )
+            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
+
+            return jsonify({
+                'thread_id': thread.id,
+                'response': resultadoGPT
+            })
 
 
 limit = 50
