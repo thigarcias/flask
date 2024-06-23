@@ -35,7 +35,7 @@ assistant_id = 'asst_0UdwfvwIpzwVLq8ZFFMxsDxJ'
 def get_filter(prompt_input):
     valor_list = []
     model = genai.GenerativeModel(
-        model_name="tunedModels/propharmaco-1ps8en4qr3nm",
+        model_name="tunedModels/the-goat-vek1yx4ulop4",
     )
     prompt_to_gemini = """
     Com base no prompt, colete as informações mais relevantes e caso ele tenha relação com a lista "Propriedades", retorne um filtro:
@@ -58,64 +58,16 @@ def get_filter(prompt_input):
         "codigoCaptacao", "dadosBanco"
     ]
 
+    if response_text == 'dadosBanco':
+        return response_text
     try:
-        response_data = json.loads(response_text)
+        response_data = eval(response_text)
     except json.JSONDecodeError as e:
         print(f'Erro ao decodificar JSON: {e}')
         return []
 
-    filtros_resultado = []
+    return response_data
 
-    if isinstance(response_data, list):
-        for filtro_obj in response_data:
-            filtro = filtro_obj.get('filtro', [])
-            valor = filtro_obj.get('valor', [])
-            operador = filtro_obj.get('operador', 'None')
-
-            for prop in filtro:
-                if prop in propriedades:
-                    valor_atual = valor[filtro.index(prop)]
-                    try:
-                        valor_atual = int(valor_atual)
-                    except ValueError:
-                        pass
-                    filtros_resultado.append({
-                        'propriedade': prop,
-                        'valor': valor_atual,
-                        'operador': operador
-                    })
-    else:
-        filtro = response_data.get('filtro', [])
-        valor = response_data.get('valor', [])
-        operador = response_data.get('operador', 'None')
-
-        for prop in filtro:
-            if prop in propriedades:
-                valor_atual = valor[filtro.index(prop)]
-                try:
-                    valor_atual = int(valor_atual)
-                except ValueError:
-                    pass
-
-                if prop == 'dataEntrada':
-                    valor_list = []
-                    data_inicio = datetime(valor_atual, 1, 1)
-                    data_fim = datetime(valor_atual, 12, 31)
-                    valor_list.append(data_inicio)
-                    valor_list.append(data_fim)
-                    filtros_resultado.append({
-                        'propriedade': prop,
-                        'valor': valor_list,
-                        'operador': operador
-                    })
-                else:
-                    filtros_resultado.append({
-                        'propriedade': prop,
-                        'valor': valor_atual,
-                        'operador': operador
-                    })
-
-    return filtros_resultado
 
 def gpt_generate(thread, objects, prompt_input):
     prompt = (
@@ -156,76 +108,53 @@ def gpt_generate(thread, objects, prompt_input):
 
     return resultadoGPT
 
+
 @app.route('/iniciar_chat', methods=['POST'])
 def iniciar_chat():
-    isInfoDatabase = False
     global limit
     data = request.json
     prompt_input = data['prompt']
     all_objects = []
     filter_query = get_filter(prompt_input)
-    query = {}
+    print("Filtro:", filter_query)
+    if filter_query != 'dadosBanco':
+        resultado = collection.find(filter_query).limit(limit)
+        for documento in resultado:
+            all_objects.append(documento)
+        # Cria uma nova thread para cada nova interação
+        thread = client_openai.beta.threads.create()
+        client_openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role='user',
+            content=prompt_input
+        )
+        resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
-    if len(filter_query) > 0:
-        for filtro in filter_query:
-            if isinstance(filtro['valor'], list) and filtro['propriedade'] == 'dataEntrada':
-                query[filtro['propriedade']] = {"$gte": filtro['valor'][0], "$lt": filtro['valor'][1]}
-            elif filtro['propriedade'] == 'dadosBanco':
-                collection.find_one()
-                isInfoDatabase = True
-            elif filtro['operador'] == 'None':
-                if isinstance(filtro['valor'], str):
-                    query[filtro['propriedade']] = filtro['valor'].upper()
-                else:
-                    query[filtro['propriedade']] = filtro['valor']
-            else:
-                if isinstance(filtro['valor'], str):
-                    query[filtro['propriedade']] = {filtro['operador']: filtro['valor'].upper()}
-                else:
-                    query[filtro['propriedade']] = {filtro['operador']: filtro['valor']}
+        return jsonify({
+            'thread_id': thread.id,
+            'response': resultadoGPT
+        })
+    else:
+        resultado = collection.find_one()
+        all_objects.append(resultado)
+        # Cria uma nova thread para cada nova interação
+        thread = client_openai.beta.threads.create()
+        client_openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role='user',
+            content=prompt_input
+        )
+        resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
 
-        print(query)
-        if not isInfoDatabase:
-            resultado = collection.find(query).limit(limit)
-            for documento in resultado:
-                all_objects.append(documento)
-            # Cria uma nova thread para cada nova interação
-            thread = client_openai.beta.threads.create()
-            client_openai.beta.threads.messages.create(
-                thread_id=thread.id,
-                role='user',
-                content=prompt_input
-            )
-            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
-
-            return jsonify({
-                'thread_id': thread.id,
-                'response': resultadoGPT
-            })
-        else:
-            resultado = collection.find_one()
-            all_objects.append(resultado)
-            # Cria uma nova thread para cada nova interação
-            thread = client_openai.beta.threads.create()
-            client_openai.beta.threads.messages.create(
-                thread_id=thread.id,
-                role='user',
-                content=prompt_input
-            )
-            resultadoGPT = gpt_generate(thread, all_objects, prompt_input)
-
-            return jsonify({
-                'thread_id': thread.id,
-                'response': resultadoGPT
-            })
-
-    # Adicione um retorno padrão para quando não houver filtros aplicados
-    return jsonify({
-        'error': 'No valid filter query was found or processed.'
-    }), 400
+        return jsonify({
+            'thread_id': thread.id,
+            'response': resultadoGPT
+        })
 
 
 limit = 20
+
+
 @app.route('/mudar_limit', methods=['POST'])
 def mudar_limite():
     global limit
@@ -234,6 +163,7 @@ def mudar_limite():
     return jsonify({
         'limit': limit
     })
+
 
 @app.route('/continuar_chat', methods=['POST'])
 def continuar_chat():
@@ -265,6 +195,7 @@ def continuar_chat():
         return jsonify({
             'status': run.status
         })
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
