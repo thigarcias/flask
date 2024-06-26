@@ -22,7 +22,7 @@ api_key = os.getenv('API_KEY')
 # Configurações do MongoDB
 client = MongoClient('mongodb://gogood:gogood24@gogood.brazilsouth.cloudapp.azure.com:27017/?authSource=admin')
 db = client['gogood']
-collection = db['ocorrencias']
+collection = db['ocorrencias-detalhadas']
 
 creds = load_creds()
 genai.configure(credentials=creds)
@@ -99,7 +99,7 @@ def get_filter(prompt_input):
 
 def gpt_generate(thread, objects, prompt_input):
     prompt = (
-        f"Com base nesses dados em um contexto farmacêutico:\n{objects}\n"
+        f"Com base nesses dados em um contexto de dados criminais:\n{objects}\n"
         f"\n{prompt_input}\n"
     )
     url = "https://api.openai.com/v1/chat/completions"
