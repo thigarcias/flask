@@ -137,7 +137,7 @@ def gpt_generate(thread, objects, prompt_input):
     return resultadoGPT
 
 
-@app.route('/iniciar_chat', methods=['POST'])
+@app.route('/iago', methods=['POST'])
 def iniciar_chat():
     global limit
     data = request.json
